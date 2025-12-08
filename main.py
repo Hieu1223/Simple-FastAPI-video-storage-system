@@ -4,12 +4,25 @@ import os
 import time
 import shutil
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
-
+from fastapi.responses import FileResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
+
+
+
 
 BASE_DIR = "uploads"
 os.makedirs(BASE_DIR, exist_ok=True)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Range", "Accept-Ranges"],
+)
 
 
 def random_hash_name(original_name: str) -> str:
@@ -45,33 +58,60 @@ async def upload_video(file: UploadFile = File(...)):
     with open(raw_path, "wb") as f:
         f.write(await file.read())
 
-    # ---- Step 3: Segment into HLS ----
-    m3u8_path = os.path.join(folder_path, "master.m3u8")
-    segment_pattern = os.path.join(folder_path, "seg_%03d.ts")
+    # ---- Step 3: Thumbnail ----
+    thumb_path = os.path.join(folder_path, "thumbnail.jpg")
+    ffmpeg.input(raw_path, ss=0).output(thumb_path, vframes=1).run(overwrite_output=True)
 
-    try:
-        (
-            ffmpeg
-            .input(raw_path)
-            .output(
-                m3u8_path,
-                format="hls",
-                hls_time=4,
-                hls_playlist_type="vod",
-                hls_segment_filename=segment_pattern,
-                vcodec="libx264",
-                acodec="aac"
+    # ---- Step 4: Multi-resolution settings ----
+    renditions = [
+        ("1080p", "1920x1080", "5000k", "6000k"),
+        ("720p",  "1280x720",  "3000k", "4000k"),
+        ("480p",  "854x480",   "1500k", "2000k"),
+        ("360p",  "640x360",   "800k",  "1200k"),
+        ("240p",  "426x240",   "400k",  "600k"),
+    ]
+
+    # ---- Step 5: Create HLS playlists for each resolution ----
+    master_playlist_path = os.path.join(folder_path, "master.m3u8")
+
+    with open(master_playlist_path, "w") as master:
+        master.write("#EXTM3U\n")
+
+        for name, resolution, bitrate, maxrate in renditions:
+            playlist = f"{name}.m3u8"
+            playlist_path = os.path.join(folder_path, playlist)
+            segment_pattern = os.path.join(folder_path, f"{name}_%03d.ts")
+
+            (
+                ffmpeg
+                .input(raw_path)
+                .output(
+                    playlist_path,
+                    format="hls",
+                    hls_time=4,
+                    hls_playlist_type="vod",
+                    hls_segment_filename=segment_pattern,
+                    vf=f"scale={resolution}",
+                    acodec="aac",
+                    vcodec="libx264",
+                    video_bitrate=bitrate,
+                    maxrate=maxrate,
+                    bufsize="2000k"
+                )
+                .run(overwrite_output=True)
             )
-            .run(overwrite_output=True)
-        )
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"ffmpeg error: {str(e)}")
+            # Add to master playlist
+            master.write(
+                f"#EXT-X-STREAM-INF:BANDWIDTH={bitrate.replace('k','000')},RESOLUTION={resolution}\n"
+                f"{playlist}\n"
+            )
 
     return {
-        "message": "Video uploaded and segmented",
+        "message": "Video uploaded and processed (multi-resolution HLS)",
         "id": folder_name,
         "manifest_url": f"/videos/{folder_name}/manifest",
+        "thumbnail_url": f"/videos/{folder_name}/thumbnail",
         "remove_url": f"/videos/{folder_name}"
     }
 
@@ -98,15 +138,15 @@ def get_video_info(video_id: str):
 # =============================================
 #           GET MANIFEST (HLS .m3u8)
 # =============================================
-@app.get("/videos/{video_id}/manifest")
+@app.get("/videos/{video_id}/master.m3u8")
 def get_manifest(video_id: str):
-    m3u8_path = os.path.join(BASE_DIR, video_id, "master.m3u8")
+    path = os.path.join(BASE_DIR, video_id, "master.m3u8")
+    with open(path) as f:
+        data = f.read()
+    return Response(data, media_type="application/vnd.apple.mpegurl")
 
-    if not os.path.exists(m3u8_path):
-        raise HTTPException(status_code=404, detail="Manifest not found")
 
-    with open(m3u8_path, "r") as f:
-        return f.read()
+
 
 @app.get("/videos/{video_id}/{segment_name}")
 def get_segment(video_id: str, segment_name: str):
@@ -119,17 +159,13 @@ def get_segment(video_id: str, segment_name: str):
     return FileResponse(file_path)
 
 
+@app.get("/thumbnails/{folder}")
+def get_thumbnail(folder: str):
+    path = os.path.join(BASE_DIR, folder, "thumbnail.jpg")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    return FileResponse(path, media_type="image/jpeg")
 
-# =============================================
-#      LIST ALL VIDEOS (Folders in uploads)
-# =============================================
-@app.get("/videos")
-def list_videos():
-    videos = os.listdir(BASE_DIR)
-    return {
-        "count": len(videos),
-        "videos": videos
-    }
 
 
 # =============================================
