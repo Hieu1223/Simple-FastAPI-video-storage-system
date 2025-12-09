@@ -24,8 +24,8 @@ async def create_video(
     db: AsyncSession = Depends(get_db)
 ):
     # ---- Step 1: Process the video (HLS, thumbnails) ----
-    #result = await process_video_file(file)
-    result = {"id": "sample_video_path/master.m3u8"}  # Mocked result for illustration
+    result = await process_video_file(file)
+    #result = {"id": "sample_video_path/master.m3u8"}  # Mocked result for illustration
     # ---- Step 2: Build VideoCreate schema ----
     video_data = VideoCreate(
         channel_id=channel_id,
