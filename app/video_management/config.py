@@ -1,0 +1,10 @@
+POSTGRES_USER = "postgres"
+POSTGRES_PASSWORD = "1972005"
+POSTGRES_HOST = "localhost"
+POSTGRES_PORT = "5432"
+POSTGRES_DB = "youtube_clone"
+
+DATABASE_URL = (
+    f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
+    f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+)
