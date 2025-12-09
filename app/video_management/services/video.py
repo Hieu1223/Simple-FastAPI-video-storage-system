@@ -24,3 +24,7 @@ async def get_video(db: AsyncSession, video_id: int) -> Video:
 async def list_videos_by_channel(db: AsyncSession, channel_id: int):
     result = await db.execute(select(Video).where(Video.channel_id == channel_id))
     return result.scalars().all()
+
+async def list_all_videos(db: AsyncSession):
+    result = await db.execute(select(Video))
+    return result.scalars().all()

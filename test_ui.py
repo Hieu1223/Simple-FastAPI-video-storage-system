@@ -87,10 +87,21 @@ def list_history(channel_id):
     res = requests.get(f"{API_URL}/management/history/channel/{channel_id}")
     return res.json()
 
-
+def search_videos(query):
+    if not query:
+        return {"error": "Empty search query"}
+    try:
+        res = requests.get(f"{API_URL}/management/search/videos", params={"q": query})
+        return res.json()
+    except Exception as e:
+        return {"error": str(e)}
 # ------------------------- Gradio UI -------------------------
 with gr.Blocks() as app:
     gr.Markdown("## Video Platform Management UI")
+
+
+    
+
 
     # --- Channels ---
     with gr.Tab("Channels"):
@@ -186,5 +197,13 @@ with gr.Blocks() as app:
         h_list_btn = gr.Button("List History")
         h_list_out = gr.JSON()
         h_list_btn.click(list_history, [h_list_channel_id], h_list_out)
+
+    with gr.Tab("Search Videos"):
+        gr.Markdown("### Search Videos")
+        search_query = gr.Textbox(label="Search Query")
+        search_btn = gr.Button("Search")
+        search_out = gr.JSON()
+        search_btn.click(search_videos, search_query, search_out)
+
 
 app.launch()
