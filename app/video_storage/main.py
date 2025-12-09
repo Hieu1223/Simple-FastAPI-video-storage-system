@@ -16,27 +16,27 @@ def read_root():
 
 
 @router.put("/videos")
-async def upload_video(file: UploadFile = File(...)):
+async def upload(file: UploadFile = File(...)):
     return await upload_video(file)
 
 
 @router.get("/videos/{video_id}/master.m3u8")
-def get_manifest(video_id: str):
+def get_mnf(video_id: str):
     return get_manifest(video_id)
 
 
 @router.get("/videos/{video_id}/{segment_name}")
-def get_segment(video_id: str, segment_name: str):
+def get_seg(video_id: str, segment_name: str):
     return get_segment(video_id, segment_name)
 
 
 @router.get("/thumbnails/{folder}")
-def get_thumbnail(folder: str):
+def get_thumb(folder: str):
     return get_thumbnail(folder)
 
 
 @router.delete("/videos/{video_id}")
-def delete_video(video_id: str):
+def delete(video_id: str):
     return delete_video(video_id)
 
 

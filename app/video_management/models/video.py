@@ -1,6 +1,12 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
 from ..database import Base
 from datetime import datetime
+import enum
+
+class PrivacyEnum(str, enum.Enum):
+    public = "public"
+    private = "private"
+    limited = "limited"
 
 class Video(Base):
     __tablename__ = "video"
@@ -15,4 +21,4 @@ class Video(Base):
     views_count = Column(Integer, default=0)
     like_count = Column(Integer, default=0)
     dislike_count = Column(Integer, default=0)
-    privacy = Column(String)  # public / private / limited
+    privacy = Column(Enum(PrivacyEnum, name="privacy_enum"), nullable=False, default=PrivacyEnum.public)

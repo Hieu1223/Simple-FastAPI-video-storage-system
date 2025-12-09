@@ -3,121 +3,42 @@ import requests
 
 API_URL = "http://localhost:8000"  # Adjust if your FastAPI runs elsewhere
 
-# ------------------------- Storage Functions -------------------------
-def upload_video_storage(file_path):
-    files = {"file": open(file_path, "rb")}
-    res = requests.put(f"{API_URL}/storage/videos", files=files)
-    return res.json()
-
-def get_thumbnail(folder_id):
-    return f"{API_URL}/storage/thumbnails/{folder_id}"
-
-def get_manifest(video_id):
-    return f"{API_URL}/storage/videos/{video_id}/master.m3u8"
-
-def delete_video_storage(video_id):
-    res = requests.delete(f"{API_URL}/storage/videos/{video_id}")
-    return res.json()
-
 # ------------------------- Management Functions -------------------------
-# Channels
-def create_channel(display_name, username, password):
-    data = {"display_name": display_name, "username": username, "password": password}
-    res = requests.post(f"{API_URL}/management/channels/", json=data)
-    return res.json()
+def upload_video_management(channel_id, title, description, category, privacy, file):
+    if file is None:
+        return {"error": "No file selected"}
 
-def list_channels():
-    res = requests.get(f"{API_URL}/management/channels/")
-    return res.json()
-
-def subscribe(channel_id, subscriber_id, subscription_type):
-    data = {"subscriber_id": subscriber_id, "channel_id": channel_id, "subscription_type": subscription_type}
-    res = requests.post(f"{API_URL}/management/channels/{channel_id}/subscribe", json=data)
-    return res.json()
-
-# Videos
-def create_video_management(channel_id, folder_id, title, description, category, privacy):
+    files = {"file": (file.name, open(file.name, "rb"), "video/mp4")}
     data = {
         "channel_id": channel_id,
-        "video_path": folder_id,
         "title": title,
         "description": description,
         "category": category,
         "privacy": privacy
     }
-    res = requests.post(f"{API_URL}/management/videos/", json=data)
+
+    try:
+        res = requests.post(f"{API_URL}/management/videos/", files=files, data=data)
+        return res.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def list_channels():
+    res = requests.get(f"{API_URL}/management/channels/")
     return res.json()
 
-def list_videos_management(channel_id):
-    res = requests.get(f"{API_URL}/management/videos/channel/{channel_id}")
-    return res.json()
-
-# Playlists
-def create_playlist(channel_id, playlist_name):
-    data = {"channel_id": channel_id, "playlist_name": playlist_name}
-    res = requests.post(f"{API_URL}/management/playlists/", json=data)
-    return res.json()
-
-def list_playlists(channel_id):
-    res = requests.get(f"{API_URL}/management/playlists/channel/{channel_id}")
-    return res.json()
-
-def add_video_to_playlist(playlist_id, video_id):
-    data = {"playlist_id": playlist_id, "video_id": video_id}
-    res = requests.post(f"{API_URL}/management/playlists/{playlist_id}/videos", json=data)
-    return res.json()
-
-def list_videos_in_playlist(playlist_id):
-    res = requests.get(f"{API_URL}/management/playlists/{playlist_id}/videos")
-    return res.json()
-
-# Comments
-def add_comment(video_id, channel_id, content, parent_comment_id=None):
-    data = {"video_id": video_id, "channel_id": channel_id, "content": content, "parent_comment_id": parent_comment_id}
-    res = requests.post(f"{API_URL}/management/comments/", json=data)
-    return res.json()
-
-def list_comments(video_id):
-    res = requests.get(f"{API_URL}/management/comments/video/{video_id}")
-    return res.json()
-
-# History
-def add_history(channel_id, video_id):
-    data = {"channel_id": channel_id, "video_id": video_id}
-    res = requests.post(f"{API_URL}/management/history/", json=data)
-    return res.json()
-
-def list_history(channel_id):
-    res = requests.get(f"{API_URL}/management/history/channel/{channel_id}")
+def create_channel(display_name, username, password):
+    data = {"display_name": display_name, "username": username, "password": password}
+    res = requests.post(f"{API_URL}/management/channels/", json=data)
     return res.json()
 
 # ------------------------- Gradio UI -------------------------
 with gr.Blocks() as app:
-    gr.Markdown("## Video Platform Gradio UI")
+    gr.Markdown("## Video Platform Management UI")
 
-    # ---------------- Storage Tab ----------------
-    with gr.Tab("Video Storage"):
-        file_input = gr.File(label="Select video file")
-        upload_btn = gr.Button("Upload Video")
-        upload_output = gr.JSON()
-        upload_btn.click(upload_video_storage, file_input, upload_output)
-
-        folder_id_input = gr.Textbox(label="Folder / Video ID")
-        thumb_btn = gr.Button("Get Thumbnail URL")
-        thumb_output = gr.Textbox()
-        thumb_btn.click(get_thumbnail, folder_id_input, thumb_output)
-
-        manifest_btn = gr.Button("Get Manifest URL")
-        manifest_output = gr.Textbox()
-        manifest_btn.click(get_manifest, folder_id_input, manifest_output)
-
-        delete_btn = gr.Button("Delete Video")
-        delete_output = gr.JSON()
-        delete_btn.click(delete_video_storage, folder_id_input, delete_output)
-
-    # ---------------- Management Tab ----------------
-    with gr.Tab("Video Management"):
-        gr.Markdown("### Channels / Subscriptions")
+    # ---------------- Channels ----------------
+    with gr.Tab("Channels"):
+        gr.Markdown("### Create Channel")
         display_name = gr.Textbox(label="Display Name")
         username = gr.Textbox(label="Username")
         password = gr.Textbox(label="Password")
@@ -125,79 +46,24 @@ with gr.Blocks() as app:
         channel_out = gr.JSON()
         create_channel_btn.click(create_channel, [display_name, username, password], channel_out)
 
+        gr.Markdown("### List Channels")
         list_channels_btn = gr.Button("List Channels")
         list_channels_out = gr.JSON()
         list_channels_btn.click(list_channels, [], list_channels_out)
 
-        channel_id_sub = gr.Number(label="Channel ID")
-        subscriber_id = gr.Number(label="Subscriber ID")
-        sub_type = gr.Dropdown(["all notif", "no notif"], label="Subscription Type")
-        sub_btn = gr.Button("Subscribe")
-        sub_out = gr.JSON()
-        sub_btn.click(subscribe, [channel_id_sub, subscriber_id, sub_type], sub_out)
-
-        gr.Markdown("### Video Metadata")
+    # ---------------- Video Upload ----------------
+    with gr.Tab("Upload Video"):
+        gr.Markdown("### Upload Video with Metadata")
         v_channel_id = gr.Number(label="Channel ID")
-        folder_id = gr.Textbox(label="Folder / Video ID from Storage")
         v_title = gr.Textbox(label="Title")
         v_desc = gr.Textbox(label="Description")
         v_cat = gr.Textbox(label="Category")
         v_privacy = gr.Dropdown(["public", "private", "limited"], label="Privacy")
-        v_create_btn = gr.Button("Create Video Record")
-        v_create_out = gr.JSON()
-        v_create_btn.click(create_video_management, [v_channel_id, folder_id, v_title, v_desc, v_cat, v_privacy], v_create_out)
-
-        v_list_channel_id = gr.Number(label="Channel ID")
-        v_list_btn = gr.Button("List Videos")
-        v_list_out = gr.JSON()
-        v_list_btn.click(list_videos_management, [v_list_channel_id], v_list_out)
-
-        gr.Markdown("### Playlists")
-        p_channel_id = gr.Number(label="Channel ID")
-        p_name = gr.Textbox(label="Playlist Name")
-        p_create_btn = gr.Button("Create Playlist")
-        p_create_out = gr.JSON()
-        p_create_btn.click(create_playlist, [p_channel_id, p_name], p_create_out)
-
-        p_list_btn = gr.Button("List Playlists")
-        p_list_out_channel_id = gr.Number(label="Channel ID")
-        p_list_out = gr.JSON()
-        p_list_btn.click(list_playlists, [p_list_out_channel_id], p_list_out)
-
-        pv_playlist_id = gr.Number(label="Playlist ID")
-        pv_video_id = gr.Number(label="Video ID")
-        pv_add_btn = gr.Button("Add Video to Playlist")
-        pv_add_out = gr.JSON()
-        pv_add_btn.click(add_video_to_playlist, [pv_playlist_id, pv_video_id], pv_add_out)
-
-        pv_list_playlist_id = gr.Number(label="Playlist ID")
-        pv_list_btn = gr.Button("List Videos in Playlist")
-        pv_list_out = gr.JSON()
-        pv_list_btn.click(list_videos_in_playlist, [pv_list_playlist_id], pv_list_out)
-
-        gr.Markdown("### Comments")
-        c_video_id = gr.Number(label="Video ID")
-        c_channel_id = gr.Number(label="Channel ID")
-        c_content = gr.Textbox(label="Comment Content")
-        c_add_btn = gr.Button("Add Comment")
-        c_add_out = gr.JSON()
-        c_add_btn.click(add_comment, [c_video_id, c_channel_id, c_content], c_add_out)
-
-        c_list_video_id = gr.Number(label="Video ID")
-        c_list_btn = gr.Button("List Comments")
-        c_list_out = gr.JSON()
-        c_list_btn.click(list_comments, [c_list_video_id], c_list_out)
-
-        gr.Markdown("### Video History")
-        h_channel_id = gr.Number(label="Channel ID")
-        h_video_id = gr.Number(label="Video ID")
-        h_add_btn = gr.Button("Add History")
-        h_add_out = gr.JSON()
-        h_add_btn.click(add_history, [h_channel_id, h_video_id], h_add_out)
-
-        h_list_channel_id = gr.Number(label="Channel ID")
-        h_list_btn = gr.Button("List History")
-        h_list_out = gr.JSON()
-        h_list_btn.click(list_history, [h_list_channel_id], h_list_out)
+        video_file = gr.File(label="Select Video", file_types=[".mp4", ".mov", ".avi"])
+        upload_btn = gr.Button("Upload Video")
+        upload_output = gr.JSON()
+        upload_btn.click(upload_video_management,
+                         [v_channel_id, v_title, v_desc, v_cat, v_privacy, video_file],
+                         upload_output)
 
 app.launch()
